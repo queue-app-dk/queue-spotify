@@ -1,0 +1,16 @@
+{
+  "AWSEBDockerrunVersion": 1,
+  "Authentication": {
+    "Bucket": "queue-docker-config",
+    "Key": "queue-dockercfg"
+  },
+  "Image": {
+    "Name": "627172978538.dkr.ecr.eu-central-1.amazonaws.com/queue-spotify:latest"
+  },
+  "Ports": [
+    {
+      "ContainerPort": 8080,
+      "HostPort": 80
+    }
+  ]
+}

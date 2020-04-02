@@ -236,4 +236,6 @@ app.post("/listenDevices", (req, res, next) => {
   res.send("Done");
 });
 
-app.listen(process.env.PORT || 6000);
+app.listen(process.env.PORT || 8080, process.env.ADDR || "0.0.0.0", () => {
+  console.log(`Server started on ${process.env.ADDR || "0.0.0.0"}:${process.env.PORT || 8080}`);
+});
