@@ -4,7 +4,7 @@ const moment = require("moment");
 const bodyParser = require("body-parser");
 
 const CronJob = require("cron").CronJob;
-const graphqlServer = "http://localhost:4000";
+const graphqlServer = process.env.graphQLServer || "http://localhost:4000";
 app = express();
 app.use(bodyParser.json({ type: "application/json" }));
 
