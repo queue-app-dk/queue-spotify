@@ -12,11 +12,16 @@ on:
 # run on Node: 12.x
 jobs:
   deploy:
+<<<<<<< HEAD
     name: Test on Node
+=======
+    name: Deploy to EB
+>>>>>>> 150cc4de57308f9bfad4ba5430a890a8b081c477
     runs-on: ubuntu-latest
     steps:
       - name: Checkout source code
         uses: actions/checkout@v1
+<<<<<<< HEAD
         with:
           ref: 'master'
       - name: Install EB CLI
@@ -26,3 +31,13 @@ jobs:
         env:
           aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+=======
+      - run: git checkout dev
+      - name: Install EB CLI
+        run: pip install awsebcli
+      - name: Deploy to EB
+        run: ls -lah && ~/.local/bin/eb deploy
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+>>>>>>> 150cc4de57308f9bfad4ba5430a890a8b081c477

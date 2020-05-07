@@ -1,12 +1,29 @@
 const express = require("express");
+const Sentry = require("@sentry/node");
 const { request } = require("graphql-request");
 const moment = require("moment");
 const bodyParser = require("body-parser");
 
 const CronJob = require("cron").CronJob;
 const graphqlServer = process.env.graphQLServer || "http://localhost:4000";
+<<<<<<< HEAD
 app = express();
+=======
+
+const app = express();
+Sentry.init({
+  dsn:
+    process.env.SENTRY_URL ||
+    "https://c76903c997a344edae1eb8199e8591de@o388984.ingest.sentry.io/5226573",
+});
+
+// The request handler must be the first middleware on the app
+app.use(Sentry.Handlers.requestHandler());
+
+>>>>>>> 150cc4de57308f9bfad4ba5430a890a8b081c477
 app.use(bodyParser.json({ type: "application/json" }));
+
+// All controllers should live below here
 
 //Cron job that creates song timer, and checks Spotify for staying in sync
 
@@ -236,6 +253,21 @@ app.post("/listenDevices", (req, res, next) => {
   res.send("Done");
 });
 
+// The error handler must be before any other error middleware and after all controllers
+app.use(Sentry.Handlers.errorHandler());
+
+// Optional fallthrough error handler
+app.use(function onError(err, req, res, next) {
+  // The error id is attached to `res.sentry` to be returned
+  // and optionally displayed to the user for support.
+  res.statusCode = 500;
+  res.end(res.sentry + "\n");
+});
+
 app.listen(process.env.PORT || 8080, process.env.ADDR || "0.0.0.0", () => {
-  console.log(`Server started on ${process.env.ADDR || "0.0.0.0"}:${process.env.PORT || 8080}`);
+  console.log(
+    `Server started on ${process.env.ADDR || "0.0.0.0"}:${
+      process.env.PORT || 8080
+    }`
+  );
 });
