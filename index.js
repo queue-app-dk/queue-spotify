@@ -1,12 +1,25 @@
 const express = require("express");
+const Sentry = require("@sentry/node");
 const { request } = require("graphql-request");
 const moment = require("moment");
 const bodyParser = require("body-parser");
 
 const CronJob = require("cron").CronJob;
 const graphqlServer = process.env.graphQLServer || "http://localhost:4000";
-app = express();
+
+const app = express();
+Sentry.init({
+  dsn:
+    process.env.SENTRY_URL ||
+    "https://c76903c997a344edae1eb8199e8591de@o388984.ingest.sentry.io/5226573"
+});
+
+// The request handler must be the first middleware on the app
+app.use(Sentry.Handlers.requestHandler());
+
 app.use(bodyParser.json({ type: "application/json" }));
+
+// All controllers should live below here
 
 //Cron job that creates song timer, and checks Spotify for staying in sync
 
@@ -28,20 +41,6 @@ function createSongTimer(partyId, duration, progress, songId, device) {
     newProgress = duration;
   }
 
-  const statusJob = new CronJob(
-    "0/10 * * * * *",
-    async () => {
-      const { stop } = await checkStatus(partyId, songId, newProgress);
-      if (stop) {
-        songJob.stop();
-        statusJob.stop();
-      }
-    },
-    null,
-    false,
-    "Europe/Copenhagen"
-  );
-
   const songJob = new CronJob(
     moment().add(duration - newProgress, "seconds"),
     async () => {
@@ -59,6 +58,20 @@ function createSongTimer(partyId, duration, progress, songId, device) {
     },
     null,
     true,
+    "Europe/Copenhagen"
+  );
+
+  const statusJob = new CronJob(
+    "0/10 * * * * *",
+    async () => {
+      const { stop } = await checkStatus(partyId, songId, newProgress);
+      if (stop) {
+        songJob.stop();
+        statusJob.stop();
+      }
+    },
+    null,
+    false,
     "Europe/Copenhagen"
   );
 
@@ -82,7 +95,7 @@ async function checkStatus(partyId, songId, progress) {
     );
     return { stop: result.playbackStatus.stop };
   } catch (err) {
-    console.log(err);
+    Sentry.captureException(err);
     return { stop: true };
   }
 }
@@ -90,19 +103,17 @@ async function checkStatus(partyId, songId, progress) {
 async function playSong(partyId) {
   const variables = { partyId };
   try {
-    const result = await request(graphqlServer, PLAY_SONG, variables);
-    return result;
+    return request(graphqlServer, PLAY_SONG, variables);
   } catch (err) {
-    console.log(err);
+    Sentry.captureException(err);
     return { stop: true };
   }
 }
 
 app.post("/startSong", (req, res, next) => {
-  console.log(req.body);
   const { partyId, duration, progress, songId, device } = req.body;
   createSongTimer(partyId, duration, progress, songId, device);
-  res.send("Done");
+  res.status(200).end();
 });
 
 //Listen for user un-pausing spotify from Spotify instead of Queue
@@ -146,7 +157,7 @@ async function checkPaused(partyId) {
     const result = await request(graphqlServer, LISTEN_PAUSED, variables);
     return { stop: result.listeningPaused.stop };
   } catch (err) {
-    console.log(err);
+    Sentry.captureException(err);
     return { stop: true };
   }
 }
@@ -154,7 +165,7 @@ async function checkPaused(partyId) {
 app.post("/listenPaused", (req, res, next) => {
   const { partyId } = req.body;
   createListenPausedTimer(partyId);
-  res.send("Done");
+  res.status(200).end();
 });
 
 //Listen for active devices
@@ -191,7 +202,7 @@ function createListenDevicesTimer(partyId, startedAgain) {
   );
 
   const checkTimeout = new CronJob(
-    moment().add(3, "minutes"),
+    moment().add(2, "minutes"),
     async () => {
       listenJob.stop();
       stop = true;
@@ -214,7 +225,7 @@ async function checkDevices(partyId, stop) {
     );
     return { device: result.searchDevices };
   } catch (err) {
-    console.log(err);
+    Sentry.captureException(err);
     return { device: null };
   }
 }
@@ -222,10 +233,9 @@ async function checkDevices(partyId, stop) {
 async function initialPlaySong(partyId, device, startedAgain) {
   const variables = { partyId, device, startedAgain };
   try {
-    const result = await request(graphqlServer, INITIAL_PLAY_SONG, variables);
-    return result;
+    return request(graphqlServer, INITIAL_PLAY_SONG, variables);
   } catch (err) {
-    console.log(err);
+    Sentry.captureException(err);
     return { stop: true };
   }
 }
@@ -233,9 +243,23 @@ async function initialPlaySong(partyId, device, startedAgain) {
 app.post("/listenDevices", (req, res, next) => {
   const { partyId, startedAgain } = req.body;
   createListenDevicesTimer(partyId, startedAgain);
-  res.send("Done");
+  res.status(200).end();
+});
+
+// The error handler must be before any other error middleware and after all controllers
+app.use(Sentry.Handlers.errorHandler());
+
+// Optional fallthrough error handler
+app.use(function onError(err, req, res, next) {
+  // The error id is attached to `res.sentry` to be returned
+  // and optionally displayed to the user for support.
+  res.statusCode = 500;
+  res.end(res.sentry + "\n");
 });
 
 app.listen(process.env.PORT || 8080, process.env.ADDR || "0.0.0.0", () => {
-  console.log(`Server started on ${process.env.ADDR || "0.0.0.0"}:${process.env.PORT || 8080}`);
+  console.log(
+    `Server started on ${process.env.ADDR || "0.0.0.0"}:${process.env.PORT ||
+      8080}`
+  );
 });
