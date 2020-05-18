@@ -47,8 +47,15 @@ function createSongTimer(partyId, duration, progress, songId, device) {
       statusJob.stop();
       const { stop } = await checkStatus(partyId, songId, newProgress);
       if (!stop) {
-        const newSong = await playSong(partyId);
-        songJob.stop();
+        try {
+          const newSong = await playSong(partyId);
+          if (newSong) {
+            songJob.stop();
+          }
+        } catch (err) {
+          statusJob.start();
+          Sentry.captureException(err);
+        }
       }
 
       if (stop) {
@@ -106,7 +113,7 @@ async function playSong(partyId) {
     return request(graphqlServer, PLAY_SONG, variables);
   } catch (err) {
     Sentry.captureException(err);
-    return { stop: true };
+    throw err;
   }
 }
 
@@ -191,9 +198,26 @@ function createListenDevicesTimer(partyId, startedAgain) {
     async () => {
       const { device } = await checkDevices(partyId, stop);
       if (device && device.id) {
-        const playedSong = await initialPlaySong(partyId, device, startedAgain);
-        checkTimeout.stop();
-        listenJob.stop();
+        try {
+          const playedSong = await initialPlaySong(
+            partyId,
+            device,
+            startedAgain
+          );
+          if (playedSong) {
+            checkTimeout.stop();
+            listenJob.stop();
+          }
+        } catch (err) {
+          //Make sure that if it timeouts on server (can't play on Spotify),
+          //that it restarts searching devices
+          stop = true;
+          const { device } = await checkDevices(partyId, stop);
+          Sentry.captureException(err);
+
+          checkTimeout.stop();
+          listenJob.stop();
+        }
       }
     },
     null,
@@ -236,7 +260,7 @@ async function initialPlaySong(partyId, device, startedAgain) {
     return request(graphqlServer, INITIAL_PLAY_SONG, variables);
   } catch (err) {
     Sentry.captureException(err);
-    return { stop: true };
+    throw err;
   }
 }
 
